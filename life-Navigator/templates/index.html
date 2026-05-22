@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>MedRoute AI - Intelligent Hospital Allocation</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
+    rel="stylesheet"
+  />
+  <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+</head>
+<body class="page-home">
+  <div class="page-glow page-glow-one"></div>
+  <div class="page-glow page-glow-two"></div>
+
+  <header class="hero-shell">
+    <div class="topbar shell">
+      <a class="brand" href="/">
+        <img
+          class="brand-mark"
+          src="{{ url_for('static', filename='brand-mark.svg') }}"
+          alt=""
+          aria-hidden="true"
+        />
+        <span>MedRoute AI</span>
+      </a>
+      <p class="topbar-note">
+        {{ dataset_snapshot.total_hospitals }} hospitals tracked across {{ dataset_snapshot.total_cities }} cities for
+        transparent emergency decision support
+      </p>
+    </div>
+
+    <div class="shell hero-grid">
+      <section class="hero-copy">
+        <p class="eyebrow">AI-driven emergency hospital allocation system</p>
+        <h1>Get the right hospital recommendation before time is lost.</h1>
+        <p class="hero-lead">
+          MedRoute AI helps emergency cases reach a better-fit hospital by combining location, clinical urgency,
+          specialty alignment, ICU capacity, and explainable ranking logic in a single workflow.
+        </p>
+
+        <div class="hero-actions">
+          <a class="button-primary" href="#triage-form">Start assessment</a>
+          <a class="button-secondary" href="#workflow">How it works</a>
+        </div>
+
+        <div class="hero-metric-grid">
+          <article class="mini-panel">
+            <strong>{{ dataset_snapshot.total_hospitals }} hospitals indexed</strong>
+            <span>
+              Coverage spans {{ dataset_snapshot.total_states }} states and {{ dataset_snapshot.total_cities }} cities
+              in the current evaluation dataset.
+            </span>
+          </article>
+          <article class="mini-panel">
+            <strong>{{ dataset_snapshot.total_icu_beds }} ICU beds tracked</strong>
+            <span>
+              Includes {{ dataset_snapshot.tertiary_centers }} tertiary centers so high-acuity cases can be escalated
+              toward more capable facilities.
+            </span>
+          </article>
+          <article class="mini-panel">
+            <strong>{{ dataset_snapshot.cardiac_ready }} cardiac-ready facilities</strong>
+            <span>
+              The scoring model also checks {{ dataset_snapshot.trauma_ready }} trauma and
+              {{ dataset_snapshot.burn_ready }} burn-support signals before ranking hospitals.
+            </span>
+          </article>
+        </div>
+      </section>
+
+      <aside class="triage-card" id="triage-form">
+        <div class="panel-head">
+          <div>
+            <p class="eyebrow">Live triage intake</p>
+            <h2>Find the best-fit hospital</h2>
+          </div>
+          <span class="panel-badge">Academic prototype</span>
+        </div>
+
+        <p class="panel-copy">
+          Enter the location and emergency context. The ranking engine will return the strongest hospital options and
+          explain why the top recommendation leads. Dataset last updated: {{ dataset_snapshot.last_updated }}.
+        </p>
+
+        <form class="triage-form" action="/allocate" method="POST">
+          <div class="field-group">
+            <div class="field-heading">
+              <span class="field-icon">01</span>
+              <div>
+                <h3>Location</h3>
+                <p>Select a state and city, or type the city directly.</p>
+              </div>
+            </div>
+
+            <div class="field-grid">
+              <label class="field">
+                <span>State</span>
+                <select id="state-select" aria-label="State">
+                  <option value="">Select state</option>
+                </select>
+              </label>
+
+              <label class="field">
+                <span>City</span>
+                <select id="city-select" aria-label="City">
+                  <option value="">Select state first</option>
+                </select>
+              </label>
+            </div>
+
+            <label class="field">
+              <span>Manual city entry</span>
+              <div class="autocomplete">
+                <input
+                  type="text"
+                  id="city-input"
+                  name="city"
+                  placeholder="Enter city name"
+                  autocomplete="off"
+                  required
+                />
+                <div id="city-suggestions" class="city-suggestions" role="listbox" aria-label="City suggestions"></div>
+              </div>
+              <p id="location-feedback" class="field-help">Select a state to narrow the city list, or start typing directly.</p>
+            </label>
+          </div>
+
+          <div class="field-group">
+            <div class="field-heading">
+              <span class="field-icon">02</span>
+              <div>
+                <h3>Emergency type</h3>
+                <p>Choose the closest match for the current clinical situation.</p>
+              </div>
+            </div>
+
+            <div class="select-card-grid" role="group" aria-label="Emergency type">
+              <button type="button" class="select-card" data-value="Cardiac" aria-pressed="false">
+                <strong>Cardiac</strong>
+                <span>Heart-related emergency support.</span>
+              </button>
+              <button type="button" class="select-card" data-value="Trauma" aria-pressed="false">
+                <strong>Trauma</strong>
+                <span>Injury, collision, or acute impact response.</span>
+              </button>
+              <button type="button" class="select-card" data-value="Burn" aria-pressed="false">
+                <strong>Burn</strong>
+                <span>Burn-care capable facilities.</span>
+              </button>
+              <button type="button" class="select-card active" data-value="General" aria-pressed="true">
+                <strong>General</strong>
+                <span>General emergency and triage intake.</span>
+              </button>
+            </div>
+            <input type="hidden" name="emergency" id="emergency-input" value="General" />
+          </div>
+
+          <div class="field-group">
+            <div class="field-heading">
+              <span class="field-icon">03</span>
+              <div>
+                <h3>Severity</h3>
+                <p>Describe the urgency so the system can prioritize response intensity.</p>
+              </div>
+            </div>
+
+            <label class="field">
+              <span>Urgency level</span>
+              <select name="severity" id="severity-select" required>
+                <option value="1">Low - Stable condition</option>
+                <option value="2" selected>Moderate - Needs attention soon</option>
+                <option value="3">Serious - High risk</option>
+                <option value="4">Critical - Immediate care needed</option>
+                <option value="5">Life-threatening</option>
+              </select>
+            </label>
+          </div>
+
+          <div id="selection-preview" class="selection-preview" aria-live="polite">
+            Ready to rank a general emergency case.
+          </div>
+
+          <button type="submit" class="button-primary button-block" id="submit-button">Generate hospital ranking</button>
+          <p class="form-footnote">This prototype focuses on recommendation support and does not store personal medical records.</p>
+        </form>
+      </aside>
+    </div>
+  </header>
+
+  <main class="home-main">
+    <section class="shell trust-strip" id="workflow">
+      <article class="trust-card">
+        <p class="eyebrow">Transparent ranking</p>
+        <h3>Every recommendation is traceable.</h3>
+        <p>The engine scores hospitals using ICU load, specialty fit, and resource readiness instead of opaque heuristics.</p>
+      </article>
+      <article class="trust-card">
+        <p class="eyebrow">Operational fit</p>
+        <h3>Designed around emergency constraints.</h3>
+        <p>The workflow focuses on response speed, overload avoidance, and sending patients to more capable facilities.</p>
+      </article>
+      <article class="trust-card">
+        <p class="eyebrow">Explainability layer</p>
+        <h3>Recommendations come with context.</h3>
+        <p>An assistant can explain ICU pressure, severity interpretation, and next-step guidance for the top-ranked choice.</p>
+      </article>
+    </section>
+
+    <section class="shell section-grid">
+      <div class="section-copy">
+        <p class="eyebrow">Decision pipeline</p>
+        <h2>Built to feel like a digital triage desk, not a static hospital directory.</h2>
+        <p>
+          The system accepts a small amount of structured input, filters the available hospital dataset, ranks the
+          strongest options, and presents both the recommendation and the reasoning in a format that is easy to audit.
+        </p>
+      </div>
+
+      <div class="workflow-grid">
+        <article class="step-card">
+          <span>01</span>
+          <h3>Capture the situation</h3>
+          <p>Collect the city, emergency type, and severity in a guided intake flow.</p>
+        </article>
+        <article class="step-card">
+          <span>02</span>
+          <h3>Filter the hospital set</h3>
+          <p>Narrow the candidate list using location and emergency-specific support signals.</p>
+        </article>
+        <article class="step-card">
+          <span>03</span>
+          <h3>Rank the best options</h3>
+          <p>Balance ICU availability, current load, and care capability to produce a top set.</p>
+        </article>
+        <article class="step-card">
+          <span>04</span>
+          <h3>Explain the outcome</h3>
+          <p>Translate the ranking into next-step guidance and an assistant-ready explanation layer.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="shell">
+      <div class="section-heading">
+        <p class="eyebrow">Core capabilities</p>
+        <h2>A more credible health-tech website for demo, review, and academic evaluation.</h2>
+        <p>The interface is designed to feel decision-focused, trustworthy, and useful under pressure.</p>
+      </div>
+
+      <div class="feature-grid">
+        <article class="feature-card">
+          <span class="feature-pill">AI ranking</span>
+          <h3>Clinical urgency plus resource awareness</h3>
+          <p>Severity, ICU pressure, and specialty support shape the ranking, so the recommendation is not purely geographic.</p>
+        </article>
+        <article class="feature-card">
+          <span class="feature-pill">Coverage</span>
+          <h3>PAN-India style dataset structure</h3>
+          <p>The workflow is built around real hospital records with state, city, capacity, and support metadata.</p>
+        </article>
+        <article class="feature-card">
+          <span class="feature-pill">Explainability</span>
+          <h3>Readable reasoning for reviewers</h3>
+          <p>Each result page frames the top choice in plain language rather than leaving the user with a raw score table.</p>
+        </article>
+        <article class="feature-card">
+          <span class="feature-pill">Navigation</span>
+          <h3>Clear guidance under urgency</h3>
+          <p>The site prioritizes practical next steps, direct mapping links, and fast access to emergency support actions.</p>
+        </article>
+        <article class="feature-card">
+          <span class="feature-pill">Responsible UX</span>
+          <h3>Safety-forward communication</h3>
+          <p>Urgency messaging stays supportive and direct, while still acknowledging that the system is an assistive prototype.</p>
+        </article>
+        <article class="feature-card">
+          <span class="feature-pill">Assessment ready</span>
+          <h3>Strong presentation for competitions</h3>
+          <p>The design language supports project reviews, demo walkthroughs, and academic submissions without feeling generic.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="shell evidence-panel">
+      <div class="evidence-copy">
+        <p class="eyebrow">Prototype framing</p>
+        <h2>Designed for evaluation, iteration, and real-world plausibility.</h2>
+        <p>
+          This experience is positioned as a high-quality prototype: polished enough for presentations, structured enough
+          for technical review, and clear enough for non-technical stakeholders to understand quickly.
+        </p>
+      </div>
+
+      <div class="evidence-list">
+        <div>
+          <strong>Use case</strong>
+          <span>Emergency hospital recommendation with explainable ranking.</span>
+        </div>
+        <div>
+          <strong>Audience</strong>
+          <span>Data science judges, faculty, reviewers, and healthcare innovation demos.</span>
+        </div>
+        <div>
+          <strong>Live dataset snapshot</strong>
+          <span>
+            {{ dataset_snapshot.total_hospitals }} hospitals, {{ dataset_snapshot.total_icu_beds }} ICU beds tracked,
+            last refreshed {{ dataset_snapshot.last_updated }}.
+          </span>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="shell footer-grid">
+      <div>
+        <a class="brand footer-brand" href="/">
+          <img
+            class="brand-mark"
+            src="{{ url_for('static', filename='brand-mark.svg') }}"
+            alt=""
+            aria-hidden="true"
+          />
+          <span>MedRoute AI</span>
+        </a>
+        <p>Academic decision-support prototype for intelligent hospital allocation.</p>
+      </div>
+
+      <div class="footer-meta">
+        <span>Educational use only</span>
+        <span>Built for transparent emergency triage exploration</span>
+      </div>
+    </div>
+  </footer>
+
+  <script src="{{ url_for('static', filename='js/home.js') }}"></script>
+</body>
+</html>

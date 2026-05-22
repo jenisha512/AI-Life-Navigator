@@ -1,0 +1,518 @@
+{% set primary = hospitals[0] if hospitals|length > 0 else None %}
+{% set city_label = selected_city if selected_city else (primary['city']|title if primary else 'Selected area') %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>MedRoute AI - Hospital Recommendation</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
+    rel="stylesheet"
+  />
+  <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+</head>
+<body class="page-results">
+  <div class="page-glow page-glow-one"></div>
+  <div class="page-glow page-glow-three"></div>
+
+  <header class="results-hero">
+    <div class="topbar shell">
+      <a class="brand" href="/">
+        <img
+          class="brand-mark"
+          src="{{ url_for('static', filename='brand-mark.svg') }}"
+          alt=""
+          aria-hidden="true"
+        />
+        <span>MedRoute AI</span>
+      </a>
+      <a class="button-secondary compact-button" href="/">Run new assessment</a>
+    </div>
+
+    <div class="shell results-hero-grid">
+      <section class="results-copy">
+        <p class="eyebrow">Recommendation summary</p>
+        <h1>
+          {% if primary %}
+            Hospital recommendations for {{ emergency }} care
+          {% else %}
+            Recommendation unavailable
+          {% endif %}
+        </h1>
+        <p class="hero-lead">
+          {% if primary %}
+            Ranked matches for <strong>{{ city_label }}</strong> based on urgency, specialty fit, ICU availability,
+            and current operational load.
+          {% else %}
+            We could not generate a ranked hospital recommendation for this request.
+          {% endif %}
+        </p>
+
+        <div class="pill-row">
+          {% if emergency %}
+            <span class="info-pill">{{ emergency }} case</span>
+          {% endif %}
+          <span class="info-pill {{ severity|lower }}">{{ severity }} urgency</span>
+          {% if primary %}
+            <span class="info-pill">{{ hospitals|length }} hospitals ranked</span>
+          {% endif %}
+        </div>
+      </section>
+
+      <aside class="summary-card">
+        {% if primary %}
+          <p class="eyebrow">Top recommendation</p>
+          <h2>{{ primary['hospital_name'] }}</h2>
+          <p class="summary-copy">Leading match for {{ city_label }} after ranking specialty support, bed availability, and ICU pressure.</p>
+
+          <div class="summary-stat-grid">
+            <div class="summary-stat">
+              <span>Care level</span>
+              <strong>{{ primary['hospital_level'] }}</strong>
+            </div>
+            <div class="summary-stat">
+              <span>Ranking score</span>
+              <strong>{{ primary['score'] }}</strong>
+            </div>
+            <div class="summary-stat">
+              <span>ICU load</span>
+              <strong>{{ primary['current_icu_load_percent'] }}%</strong>
+            </div>
+            <div class="summary-stat">
+              <span>Confidence</span>
+              <strong>{{ primary['confidence_label'] }}</strong>
+            </div>
+          </div>
+        {% else %}
+          <p class="eyebrow">Assessment status</p>
+          <h2>No ranking produced</h2>
+          <p class="summary-copy">{{ error if error else 'Try adjusting the city or severity and run the assessment again.' }}</p>
+          <a class="button-primary compact-button" href="/">Return to homepage</a>
+        {% endif %}
+      </aside>
+    </div>
+  </header>
+
+  <main class="results-main shell">
+    {% if error %}
+      <section class="empty-state error-state">
+        <p class="eyebrow">Assessment issue</p>
+        <h2>We could not produce a ranked hospital list.</h2>
+        <p>{{ error }}</p>
+        <div class="hero-actions">
+          <a class="button-primary compact-button" href="/">Try another assessment</a>
+        </div>
+      </section>
+    {% endif %}
+
+    {% if primary %}
+      <section class="alert-banner {{ severity|lower }}">
+        <div class="alert-title-row">
+          <div>
+            <p class="eyebrow">Urgency guidance</p>
+            <h2>
+              {% if severity == "High" %}
+                Immediate professional care is strongly recommended.
+              {% elif severity == "Moderate" %}
+                Prompt clinical evaluation is recommended.
+              {% else %}
+                Monitor closely and seek care if symptoms escalate.
+              {% endif %}
+            </h2>
+          </div>
+          <span class="info-pill {{ severity|lower }}">{{ severity }}</span>
+        </div>
+
+        <p>
+          {% if severity == "High" %}
+            The selected severity indicates a high-risk case. Use the recommendation below as a decision-support aid and prioritize urgent medical attention.
+          {% elif severity == "Moderate" %}
+            The current severity suggests the patient should be evaluated soon, with priority given to capable facilities that can respond without delay.
+          {% else %}
+            The current severity appears more stable, but the recommendation still helps identify a stronger-fit facility if professional review is needed.
+          {% endif %}
+        </p>
+      </section>
+
+      <section class="recommendation-layout">
+        {% set primary_tone = 'load-low' if primary['current_icu_load_percent'] < 50 else 'load-mid' if primary['current_icu_load_percent'] < 75 else 'load-high' %}
+        <article class="hospital-card spotlight-card" data-lat="{{ primary['latitude'] }}" data-lon="{{ primary['longitude'] }}">
+          <div class="card-topline">
+            <div class="badge-row">
+              <span class="rank-badge">Top ranked</span>
+              <span class="level-badge">{{ primary['hospital_level'] }}</span>
+              <span class="best-badge">Best overall match</span>
+              <span class="info-pill">Score {{ primary['score'] }}</span>
+              <span class="info-pill">{{ primary['confidence_label'] }}</span>
+            </div>
+            <a class="text-link" href="/">New assessment</a>
+          </div>
+
+          <h2 class="hospital-name">{{ primary['hospital_name'] }}</h2>
+          <p class="hospital-address">{{ primary['address'] if primary['address'] else 'Address unavailable in the current dataset.' }}</p>
+          <p class="recommendation-reason">{{ primary['recommendation_reason'] }}</p>
+
+          <div class="metric-grid metric-grid-wide">
+            <div class="metric-box">
+              <span class="metric-label">ICU beds</span>
+              <strong class="metric-value">{{ primary['icu_beds'] }}</strong>
+              <span class="metric-note">Current bed count in the dataset</span>
+            </div>
+            <div class="metric-box">
+              <span class="metric-label">ICU load</span>
+              <strong class="metric-value">{{ primary['current_icu_load_percent'] }}%</strong>
+              <div class="load-track">
+                <div class="load-bar {{ primary_tone }}" style="width: {{ primary['current_icu_load_percent'] }}%"></div>
+              </div>
+              <span class="metric-note">{{ primary['load_band'] }}</span>
+            </div>
+            <div class="metric-box">
+              <span class="metric-label">Ranking score</span>
+              <strong class="metric-value">{{ primary['score'] }}</strong>
+              <span class="metric-note">Composite fit from readiness, specialty support, and ICU pressure</span>
+            </div>
+            <div class="metric-box">
+              <span class="metric-label">Distance estimate</span>
+              <strong class="metric-value distance-text">Calculating</strong>
+              <span class="metric-note">Approximate distance from selected area center</span>
+            </div>
+          </div>
+
+          <section class="score-breakdown" aria-label="Score breakdown">
+            <div class="section-heading compact">
+              <div>
+                <p class="eyebrow">Score breakdown</p>
+                <h2>Why the score landed at {{ primary['score'] }}</h2>
+              </div>
+              <span class="confidence-pill">{{ primary['confidence_label'] }}</span>
+            </div>
+
+            <div class="breakdown-list">
+              <div class="breakdown-row">
+                <div>
+                  <strong>ICU availability</strong>
+                  <span>Immediate capacity signal from available ICU beds.</span>
+                </div>
+                <div class="breakdown-value">
+                  <span>+{{ primary['availability_points'] }}</span>
+                  <div class="breakdown-track">
+                    <div class="breakdown-bar" style="width: {{ (primary['availability_points'] / 30 * 100)|round(0, 'floor')|int }}%"></div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="breakdown-row">
+                <div>
+                  <strong>Specialty fit</strong>
+                  <span>{{ primary['specialty_label'] }}</span>
+                </div>
+                <div class="breakdown-value">
+                  <span>+{{ primary['specialization_points'] }}</span>
+                  <div class="breakdown-track">
+                    <div class="breakdown-bar" style="width: {{ (primary['specialization_points'] / 25 * 100)|round(0, 'floor')|int }}%"></div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="breakdown-row">
+                <div>
+                  <strong>Operational load</strong>
+                  <span>{{ primary['load_band'] }}</span>
+                </div>
+                <div class="breakdown-value">
+                  <span>{% if primary['load_points'] > 0 %}+{% endif %}{{ primary['load_points'] }}</span>
+                  <div class="breakdown-track">
+                    <div
+                      class="breakdown-bar {% if primary['load_points'] < 0 %}risk-bar{% endif %}"
+                      style="width: {{ 100 if primary['load_points'] > 0 else 24 }}%"
+                    ></div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="breakdown-row">
+                <div>
+                  <strong>Care capability</strong>
+                  <span>{{ primary['hospital_level'] }} capability for escalation and sustained care.</span>
+                </div>
+                <div class="breakdown-value">
+                  <span>+{{ primary['capability_points'] }}</span>
+                  <div class="breakdown-track">
+                    <div class="breakdown-bar" style="width: {{ (primary['capability_points'] / 10 * 100)|round(0, 'floor')|int }}%"></div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="breakdown-row">
+                <div>
+                  <strong>Severity weighting</strong>
+                  <span>Urgency raises the priority of faster, stronger-fit allocation.</span>
+                </div>
+                <div class="breakdown-value">
+                  <span>+{{ primary['severity_points'] }}</span>
+                  <div class="breakdown-track">
+                    <div class="breakdown-bar" style="width: {{ (primary['severity_points'] / 15 * 100)|round(0, 'floor')|int }}%"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <div class="action-row">
+            <button type="button" class="button-primary compact-button copy-emergency" data-number="112">Copy emergency number</button>
+            <a
+              class="button-secondary compact-button"
+              href="https://www.google.com/maps/dir/?api=1&destination={{ primary['latitude'] }},{{ primary['longitude'] }}"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Open directions
+            </a>
+          </div>
+
+          <div class="brief-actions">
+            <button type="button" class="button-ghost compact-button" id="copy-summary">Copy referral summary</button>
+            <button type="button" class="button-ghost compact-button" id="print-briefing">Print briefing</button>
+          </div>
+        </article>
+
+        <aside class="insight-stack">
+          <article class="insight-card">
+            <p class="eyebrow">Why this hospital leads</p>
+            <h3>Decision factors behind the top recommendation</h3>
+            <ul class="bullet-list">
+              <li>{{ primary['specialty_label'] }}.</li>
+              <li>{{ primary['load_band'] }} keeps the recommendation operationally usable.</li>
+              <li>ICU availability contributes {{ primary['availability_points'] }} points to the ranking.</li>
+              <li>{{ primary['hospital_level'] }} capability contributes {{ primary['capability_points'] }} points to escalation readiness.</li>
+              <li>Severity weighting adds {{ primary['severity_points'] }} points for the current triage urgency.</li>
+              <li>The recommendation keeps the decision readable for clinicians, judges, and reviewers.</li>
+            </ul>
+          </article>
+
+          <article class="insight-card">
+            <p class="eyebrow">Immediate next steps</p>
+            <h3>How to act on this recommendation</h3>
+            <ol class="ordered-list">
+              <li>Proceed to the top-ranked hospital if the condition requires prompt care.</li>
+              <li>Carry current reports, medication details, and patient history if available.</li>
+              <li>Keep backup hospitals ready from the ranked list below in case conditions change.</li>
+            </ol>
+          </article>
+        </aside>
+      </section>
+
+      {% if hospitals|length > 1 %}
+        <section class="section-shell alternatives-section">
+          <div class="section-heading">
+            <p class="eyebrow">Backup options</p>
+            <h2>Other suitable hospitals in the ranking</h2>
+            <p>These alternatives remain viable if the primary recommendation becomes unavailable or travel conditions change.</p>
+          </div>
+
+          <div class="hospital-grid">
+            {% for hospital in hospitals[1:] %}
+              {% set load_tone = 'load-low' if hospital['current_icu_load_percent'] < 50 else 'load-mid' if hospital['current_icu_load_percent'] < 75 else 'load-high' %}
+              <article class="hospital-card" data-lat="{{ hospital['latitude'] }}" data-lon="{{ hospital['longitude'] }}">
+                <div class="card-topline">
+                  <div class="badge-row">
+                    <span class="rank-badge">Rank {{ loop.index + 1 }}</span>
+                    <span class="level-badge">{{ hospital['hospital_level'] }}</span>
+                    <span class="info-pill">Score {{ hospital['score'] }}</span>
+                  </div>
+                </div>
+
+                <h3 class="hospital-name">{{ hospital['hospital_name'] }}</h3>
+                <p class="hospital-address">{{ hospital['address'] if hospital['address'] else 'Address unavailable in the current dataset.' }}</p>
+
+                <div class="metric-grid">
+                  <div class="metric-box">
+                    <span class="metric-label">ICU beds</span>
+                    <strong class="metric-value">{{ hospital['icu_beds'] }}</strong>
+                  </div>
+                  <div class="metric-box">
+                    <span class="metric-label">ICU load</span>
+                    <strong class="metric-value">{{ hospital['current_icu_load_percent'] }}%</strong>
+                    <div class="load-track">
+                      <div class="load-bar {{ load_tone }}" style="width: {{ hospital['current_icu_load_percent'] }}%"></div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="metric-box metric-box-distance">
+                  <span class="metric-label">Distance estimate</span>
+                  <strong class="metric-value distance-text">Calculating</strong>
+                  <span class="metric-note">Approximate distance from selected area center</span>
+                </div>
+
+                <div class="action-row">
+                  <button type="button" class="button-secondary compact-button copy-emergency" data-number="112">Copy emergency number</button>
+                  <a
+                    class="button-ghost compact-button"
+                    href="https://www.google.com/maps/dir/?api=1&destination={{ hospital['latitude'] }},{{ hospital['longitude'] }}"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    Directions
+                  </a>
+                </div>
+              </article>
+            {% endfor %}
+          </div>
+        </section>
+      {% endif %}
+
+      <section class="section-shell comparison-section">
+        <div class="section-heading">
+          <p class="eyebrow">Command board</p>
+          <h2>Quick comparison of the ranked shortlist</h2>
+          <p>Use this matrix when you need a fast overview of score strength, ICU pressure, and recommendation confidence.</p>
+        </div>
+
+        <div class="comparison-table-wrap">
+          <table class="comparison-table">
+            <thead>
+              <tr>
+                <th>Rank</th>
+                <th>Hospital</th>
+                <th>Level</th>
+                <th>Score</th>
+                <th>ICU load</th>
+                <th>Confidence</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for hospital in hospitals %}
+                <tr>
+                  <td>#{{ loop.index }}</td>
+                  <td>
+                    <strong>{{ hospital['hospital_name'] }}</strong>
+                    <span>{{ hospital['recommendation_reason'] }}</span>
+                  </td>
+                  <td>{{ hospital['hospital_level'] }}</td>
+                  <td>{{ hospital['score'] }}</td>
+                  <td>{{ hospital['current_icu_load_percent'] }}%</td>
+                  <td>{{ hospital['confidence_label'] }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="analysis-grid">
+        <article class="analysis-card map-card">
+          <div class="section-heading compact">
+            <p class="eyebrow">Regional view</p>
+            <h2>Mapped hospital positions</h2>
+            <p>All ranked hospitals are plotted here for quick comparison and route access.</p>
+          </div>
+          <div id="map"></div>
+        </article>
+
+        <article class="analysis-card chart-card">
+          <div class="section-heading compact">
+            <p class="eyebrow">Decision comparison</p>
+            <h2>Ranking score and ICU load</h2>
+          </div>
+          <div class="chart-frame">
+            <canvas id="icuChart"></canvas>
+          </div>
+          <p class="chart-note">The chart compares the ranking score against ICU pressure so tradeoffs stay visible.</p>
+        </article>
+
+        <article class="analysis-card">
+          <div class="section-heading compact">
+            <p class="eyebrow">Recommendation logic</p>
+            <h2>What the ranking is optimizing for</h2>
+          </div>
+          <ul class="bullet-list">
+            <li>Support the requested emergency category with the strongest operational fit.</li>
+            <li>Prefer hospitals that combine ICU capacity with manageable current pressure.</li>
+            <li>Present a ranked shortlist rather than a single opaque recommendation.</li>
+            <li>Keep the result interpretable for demonstration and review settings.</li>
+          </ul>
+        </article>
+      </section>
+    {% endif %}
+  </main>
+
+  {% if primary %}
+    <button id="assistant-btn" class="chat-launcher" type="button" aria-label="Open hospital assistant">
+      Open hospital assistant
+    </button>
+
+    <section
+      id="chatbot-container"
+      class="chatbot"
+      data-hospital="{{ primary['hospital_name'] }}"
+      data-icu-load="{{ primary['current_icu_load_percent'] }}"
+      data-icu-beds="{{ primary['icu_beds'] }}"
+      data-severity="{{ severity }}"
+      data-emergency="{{ emergency }}"
+      data-hospital-level="{{ primary['hospital_level'] }}"
+      data-score="{{ primary['score'] }}"
+      data-city="{{ city_label }}"
+      data-confidence="{{ primary['confidence_label'] }}"
+      data-reason="{{ primary['recommendation_reason'] }}"
+    >
+      <div class="chatbot-header">
+        <div class="chatbot-brand">
+          <img
+            class="brand-mark"
+            src="{{ url_for('static', filename='brand-mark.svg') }}"
+            alt=""
+            aria-hidden="true"
+          />
+          <div class="chatbot-brand-copy">
+            <strong>Hospital Assistant</strong>
+            <span>Explainability layer for the current recommendation</span>
+          </div>
+        </div>
+        <button type="button" class="chatbot-close" data-chat-close>&times;</button>
+      </div>
+
+      <div id="chat-body" class="chatbot-body">
+        <div class="chat-message bot">
+          <div class="avatar">AI</div>
+          <div class="chat-bubble">
+            I can explain why {{ primary['hospital_name'] }} ranked first, what the ICU load means, and which next steps make sense from here.
+          </div>
+        </div>
+        <div class="chat-suggestion-row">
+          <button type="button" class="chat-suggestion" data-prompt="Why was this hospital recommended?">Why this hospital?</button>
+          <button type="button" class="chat-suggestion" data-prompt="What does the ICU load mean?">Explain ICU load</button>
+          <button type="button" class="chat-suggestion" data-prompt="How strong is this match?">Match strength</button>
+          <button type="button" class="chat-suggestion" data-prompt="What should we do next?">Next steps</button>
+        </div>
+      </div>
+
+      <div class="chatbot-footer">
+        <input
+          id="user-message"
+          type="text"
+          placeholder="Ask about ICU load, severity, or next steps"
+        />
+        <button id="send-message" class="send-button" type="button">Send</button>
+      </div>
+    </section>
+  {% endif %}
+
+  <div id="page-toast" class="toast" aria-live="polite"></div>
+
+  {% if primary %}
+    <script>
+      window.hospitalResultsData = {{ hospitals | tojson }};
+    </script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="{{ url_for('static', filename='js/result.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/chat.js') }}"></script>
+  {% endif %}
+</body>
+</html>
